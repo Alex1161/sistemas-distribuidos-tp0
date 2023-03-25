@@ -9,7 +9,8 @@ Para ejecutar este ejercicio se agrego el parametro CLIENT al makefile y un scri
 
 1. Abrir una terminal
 2. Moverse a la raiz del proyecto.
-3. Ejecutar el comando `make docker-compose-up CLIENTS=N`, siendo N la cantidad de clientes que se desea levantar (e.g. `make docker-compose-up CLIENTS=4`).
+3. Moverse a la branch exercise_1 usando el comando de git `git checkout exercise_1`
+4. Ejecutar el comando `make docker-compose-up CLIENTS=N`, siendo N la cantidad de clientes que se desea levantar (e.g. `make docker-compose-up CLIENTS=4`).
 
 # TP0: Docker + Comunicaciones + Concurrencia
 
