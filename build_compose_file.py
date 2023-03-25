@@ -43,6 +43,8 @@ try:
     total_clients = int(sys.argv[1])
 except ValueError:
     raise ValueError("Argument CLIENT could not be parsed to int.")
+except IndexError:
+    pass
 
 with open("docker-compose-dev.yaml", "w") as file:
     content = START
