@@ -12,6 +12,8 @@ services:
       - LOGGING_LEVEL=DEBUG
     networks:
       - testing_net
+    volumes:
+      - ./server/config.ini:/config.ini
 
 '''
 
@@ -34,6 +36,8 @@ TO_REPLACE = '''  client<CLIENT_ID>:
       - testing_net
     depends_on:
       - server
+    volumes:
+      - ./client/config.yaml:/config.yaml
 
 '''
 
