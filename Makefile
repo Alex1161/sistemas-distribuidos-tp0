@@ -26,6 +26,7 @@ docker-image:
 .PHONY: docker-image
 
 docker-compose-up: docker-image
+	python3 build_compose_file.py $(CLIENTS)
 	docker compose -f docker-compose-dev.yaml up -d --build
 .PHONY: docker-compose-up
 
