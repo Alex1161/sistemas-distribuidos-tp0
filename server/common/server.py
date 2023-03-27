@@ -6,7 +6,7 @@ import signal
 class Server:
     def __init__(self, port, listen_backlog):
         # Initialize server socket
-        self._shutdown = True
+        self._shutdown = False
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
@@ -28,7 +28,7 @@ class Server:
 
         # TODO: Modify this program to handle signal to graceful shutdown
         # the server
-        while self._shutdown:
+        while not self._shutdown:
             client_sock = self.__accept_new_connection()
             self.__handle_client_connection(client_sock)
 
@@ -39,7 +39,7 @@ class Server:
         If a problem arises in the communication with the client, the
         client socket will also be closed
         """
-        if not self._shutdown:
+        if self._shutdown:
             return
 
         try:
@@ -72,5 +72,5 @@ class Server:
         return c
 
     def __del__(self):
-        self._shutdown = False
+        self._shutdown = True
         self._server_socket.close()
