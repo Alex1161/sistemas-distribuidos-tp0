@@ -1,5 +1,6 @@
 SHELL := /bin/bash
 PWD := $(shell pwd)
+ENV := dev
 
 GIT_REMOTE = github.com/7574-sistemas-distribuidos/docker-compose-init
 
@@ -17,7 +18,11 @@ build: deps
 
 docker-image:
 	docker build -f ./server/Dockerfile -t "server:latest" .
-	docker build -f ./client/Dockerfile -t "client:latest" .
+	if [ "$(ENV)" = "test" ]; then \
+		docker build -f ./dummy_client/Dockerfile -t "dummy_client:latest" .; \
+	else \
+        docker build -f ./client/Dockerfile -t "client:latest" .; \
+    fi
 	# Execute this command from time to time to clean up intermediate stages generated 
 	# during client build (your hard drive will like this :) ). Don't left uncommented if you 
 	# want to avoid rebuilding client image every time the docker-compose-up command 
@@ -27,14 +32,14 @@ docker-image:
 
 docker-compose-up: docker-image
 	python3 build_compose_file.py $(CLIENTS)
-	docker compose -f docker-compose-dev.yaml up -d --build
+	docker compose --profile $(ENV) -f docker-compose-dev.yaml up -d --build
 .PHONY: docker-compose-up
 
 docker-compose-down:
-	docker compose -f docker-compose-dev.yaml stop -t 1
-	docker compose -f docker-compose-dev.yaml down
+	docker compose --profile $(ENV) -f docker-compose-dev.yaml stop -t 1
+	docker compose --profile $(ENV) -f docker-compose-dev.yaml down
 .PHONY: docker-compose-down
 
 docker-compose-logs:
-	docker compose -f docker-compose-dev.yaml logs -f
+	docker compose --profile $(ENV) -f docker-compose-dev.yaml logs -f
 .PHONY: docker-compose-logs

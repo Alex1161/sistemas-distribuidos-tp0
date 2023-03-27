@@ -5,6 +5,7 @@ services:
     container_name: server
     image: server:latest
     entrypoint: python3 /main.py
+    profiles: ["dev", "test"]
     environment:
       - PYTHONUNBUFFERED=1
       - LOGGING_LEVEL=DEBUG
@@ -13,10 +14,23 @@ services:
     volumes:
       - ./server/config.ini:/config.ini
 
+  dummy_client:
+    container_name: dummy_client
+    image: dummy_client:latest
+    entrypoint: ./test_server.sh
+    profiles: ["test"]
+    networks:
+      - testing_net
+    depends_on:
+      - server
+    volumes:
+      - ./dummy_client/test_server.sh:/test_server.sh
+
   client1:
     container_name: client1
     image: client:latest
     entrypoint: /client
+    profiles: ["dev"]
     environment:
       - CLI_ID=1
       - CLI_LOG_LEVEL=DEBUG

@@ -7,6 +7,7 @@ services:
     container_name: server
     image: server:latest
     entrypoint: python3 /main.py
+    profiles: ["dev", "test"]
     environment:
       - PYTHONUNBUFFERED=1
       - LOGGING_LEVEL=DEBUG
@@ -14,6 +15,18 @@ services:
       - testing_net
     volumes:
       - ./server/config.ini:/config.ini
+
+  dummy_client:
+    container_name: dummy_client
+    image: dummy_client:latest
+    entrypoint: ./test_server.sh
+    profiles: ["test"]
+    networks:
+      - testing_net
+    depends_on:
+      - server
+    volumes:
+      - ./dummy_client/test_server.sh:/test_server.sh
 
 '''
 
@@ -29,6 +42,7 @@ TO_REPLACE = '''  client<CLIENT_ID>:
     container_name: client<CLIENT_ID>
     image: client:latest
     entrypoint: /client
+    profiles: ["dev"]
     environment:
       - CLI_ID=<CLIENT_ID>
       - CLI_LOG_LEVEL=DEBUG
