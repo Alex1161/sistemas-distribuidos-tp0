@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"net"
 	"time"
+	"os"
+    "os/signal"
+    "syscall"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -21,13 +24,17 @@ type ClientConfig struct {
 type Client struct {
 	config ClientConfig
 	conn   net.Conn
+	shutdown chan os.Signal 
 }
 
 // NewClient Initializes a new client receiving the configuration
 // as a parameter
 func NewClient(config ClientConfig) *Client {
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGTERM)
 	client := &Client{
 		config: config,
+		shutdown: sigs,
 	}
 	return client
 }
@@ -55,13 +62,24 @@ func (c *Client) StartClientLoop() {
 
 loop:
 	// Send messages if the loopLapse threshold has not been surpassed
-	for timeout := time.After(c.config.LoopLapse); ; {
+	for timeout := time.NewTimer(c.config.LoopLapse); ; {
 		select {
-		case <-timeout:
+		case <-timeout.C:
 	        log.Infof("action: timeout_detected | result: success | client_id: %v",
                 c.config.ID,
             )
 			break loop
+		case <-c.shutdown:
+			c.conn.Close()	//Just in case
+			// Stop the timer from timeout to not leak memory
+			if !timeout.Stop() {
+				<-timeout.C
+			} 
+			
+			log.Infof("action: shutdown | result: success | client_id: %v",
+                c.config.ID,
+            )
+			return
 		default:
 		}
 
