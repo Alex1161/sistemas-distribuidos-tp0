@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"strconv"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -20,6 +21,12 @@ import (
 // an error is returned
 func InitConfig() (*viper.Viper, error) {
 	v := viper.New()
+
+	v.BindEnv("name")
+	v.BindEnv("lastname")
+	v.BindEnv("dni")
+	v.BindEnv("birthday")
+	v.BindEnv("number")
 
 	// Configure viper to read env variables with the CLI_ prefix
 	v.AutomaticEnv()
@@ -52,6 +59,14 @@ func InitConfig() (*viper.Viper, error) {
 
 	if _, err := time.ParseDuration(v.GetString("loop.period")); err != nil {
 		return nil, errors.Wrapf(err, "Could not parse CLI_LOOP_PERIOD env var as time.Duration.")
+	}
+
+	if _, err := strconv.ParseUint(v.GetString("dni"), 10, 32); err != nil {
+		return nil, errors.Wrapf(err, "Could not parse DNI env var as uint.")
+	}
+
+	if _, err := strconv.ParseUint(v.GetString("number"), 10, 32); err != nil {
+		return nil, errors.Wrapf(err, "Could not parse NUMBER env var as uint.")
 	}
 
 	return v, nil
@@ -107,6 +122,14 @@ func main() {
 		LoopPeriod:    v.GetDuration("loop.period"),
 	}
 
-	client := common.NewClient(clientConfig)
+	clientInfo := common.ClientInfo{
+		Name:		v.GetString("name"),
+		Lastname:	v.GetString("lastname"),
+		DNI:		v.GetUint("dni"),
+		Birthday:	v.GetString("birthday"),
+		Number:		v.GetUint("number"),
+	}
+
+	client := common.NewClient(clientConfig, clientInfo)
 	client.StartClientLoop()
 }

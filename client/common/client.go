@@ -24,17 +24,28 @@ type ClientConfig struct {
 type Client struct {
 	config ClientConfig
 	conn   net.Conn
+	clientInfo ClientInfo
 	shutdown chan os.Signal 
+}
+
+// ClientInfo Entity
+type ClientInfo struct {
+	Name		string
+	Lastname   	string
+	DNI 		uint
+	Birthday 	string
+	Number		uint
 }
 
 // NewClient Initializes a new client receiving the configuration
 // as a parameter
-func NewClient(config ClientConfig) *Client {
+func NewClient(config ClientConfig, clientInfo ClientInfo) *Client {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGTERM)
 	client := &Client{
 		config: config,
 		shutdown: sigs,
+		clientInfo: clientInfo,
 	}
 	return client
 }
@@ -60,6 +71,19 @@ func (c *Client) StartClientLoop() {
 	// autoincremental msgID to identify every message sent
 	msgID := 1
 
+	// Build message
+	// Format 	<NAME>;<LASTNAME>;<DNI>;<BIRTHDAY>;<NUMBER>/
+	content := fmt.Sprintf(
+		"%s;%s;%d;%s;%d/", 
+		c.clientInfo.Name, 
+		c.clientInfo.Lastname,
+		c.clientInfo.DNI,
+		c.clientInfo.Birthday,
+		c.clientInfo.Number,
+	)
+
+	c.createClientSocket()
+
 loop:
 	// Send messages if the loopLapse threshold has not been surpassed
 	for timeout := time.NewTimer(c.config.LoopLapse); ; {
@@ -70,8 +94,8 @@ loop:
             )
 			break loop
 		case <-c.shutdown:
-			c.conn.Close()	//Just in case
-			// Stop the timer from timeout to not leak memory
+			c.conn.Close()
+			// Stop the timer from timeout to not leak goroutines
 			if !timeout.Stop() {
 				<-timeout.C
 			} 
@@ -83,9 +107,6 @@ loop:
 		default:
 		}
 
-		// Create the connection the server in every loop iteration. Send an
-		c.createClientSocket()
-
 		// TODO: Modify the send to avoid short-write
 		fmt.Fprintf(
 			c.conn,
@@ -95,13 +116,13 @@ loop:
 		)
 		msg, err := bufio.NewReader(c.conn).ReadString('\n')
 		msgID++
-		c.conn.Close()
 
 		if err != nil {
 			log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
                 c.config.ID,
 				err,
 			)
+			c.conn.Close()
 			return
 		}
 		log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
@@ -113,5 +134,6 @@ loop:
 		time.Sleep(c.config.LoopPeriod)
 	}
 
+	c.conn.Close()
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 }
