@@ -71,7 +71,7 @@ loop:
 			break loop
 		case <-c.shutdown:
 			c.conn.Close()	//Just in case
-			// Stop the timer from timeout to not leak memory
+			// Stop the timer from timeout to not leak goroutine
 			if !timeout.Stop() {
 				<-timeout.C
 			} 
