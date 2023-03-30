@@ -63,9 +63,8 @@ class Server:
     def __send(self, client_sock, bytes_msg):
         try:
             sent = 0
-            client_sock.send(bytes_msg)
-            # while sent >= RESPONSE_BYTES:
-                # sent += client_sock.send(bytes_msg)
+            while not sent >= RESPONSE_BYTES:
+                sent += client_sock.send(bytes_msg)
 
             addr = client_sock.getpeername()
             logging.info(f'action: send_message | result: success | ip: {addr[0]} | msg: {bytes_msg}')

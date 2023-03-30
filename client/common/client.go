@@ -108,7 +108,7 @@ func (c *Client) encode() []byte {
 }
 
 func (c *Client) decode(msg []byte) uint16 {
-	response := binary.BigEndian.Uint16(msg[:])
+	response := binary.BigEndian.Uint32(msg[:])
 
 	log.Infof("action: decoding | result: success | client_id: %v | msg: %v -> %v",
 		c.config.ID,
@@ -116,7 +116,7 @@ func (c *Client) decode(msg []byte) uint16 {
 		response,
 	)
 
-	return response
+	return uint16(response)
 }
 
 func min(a, b int) int {
@@ -151,24 +151,25 @@ func (c *Client) send_bytes(msg []byte) error {
 
 func (c *Client) recv_bytes() []byte {
 	RESPONSE_SIZE := 2
-	// msg := make([]byte, RESPONSE_SIZE)
+	msg := make([]byte, RESPONSE_SIZE)
 	response := make([]byte, RESPONSE_SIZE)
-	// bytes_recv := 0
+	bytes_recv := 0
 
-	c.conn.Read(response)
+	// c.conn.Read(response)
 
-	// for aux := 0; bytes_recv < RESPONSE_SIZE; bytes_recv += aux {
-	// 	aux, err := c.conn.Read(msg)
-	// 	if err != nil {
-	// 		c.conn.Close()
-	// 		log.Fatalf("action: recv_bytes | result: fail | client_id: %v | error: %v",
-	// 			c.config.ID,
-	// 			err,
-	// 		)
-	// 	}
+	for ; bytes_recv < RESPONSE_SIZE; {
+		aux, err := c.conn.Read(msg)
+		if err != nil {
+			c.conn.Close()
+			log.Fatalf("action: recv_bytes | result: fail | client_id: %v | error: %v",
+				c.config.ID,
+				err,
+			)
+		}
 
-	// 	response = append(response, msg[:aux]...)
-	// }
+		bytes_recv += aux
+		response = append(response, msg[:aux]...)
+	}
 
 	log.Infof("action: recv_bytes | result: success | client_id: %v | msg: %v received",
 		c.config.ID,
@@ -183,16 +184,16 @@ func (c *Client) StartClientLoop() {
 	c.createClientSocket()
 
 	// Catchig sigterm to shutdown gracefully
-	// select {
-	// case <-c.shutdown:
-	// 	c.conn.Close()
+	select {
+	case <-c.shutdown:
+		c.conn.Close()
 		
-	// 	log.Infof("action: shutdown | result: success | client_id: %v",
-	// 		c.config.ID,
-	// 	)
-	// 	return
-	// default:
-	// }
+		log.Infof("action: shutdown | result: success | client_id: %v",
+			c.config.ID,
+		)
+		return
+	default:
+	}
 
 	bytes_to_send := c.encode()
 	c.send_bytes(bytes_to_send)
