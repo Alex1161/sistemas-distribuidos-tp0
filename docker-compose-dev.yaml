@@ -46,6 +46,86 @@ services:
     volumes:
       - ./client/config.yaml:/config.yaml
 
+  client2:
+    container_name: client2
+    image: client:latest
+    entrypoint: /client
+    profiles: ["dev"]
+    environment:
+      - CLI_ID=2
+      - CLI_LOG_LEVEL=DEBUG
+      - NAME=Gabriel Alexander
+      - LASTNAME=Arbieto
+      - DNI=95768928
+      - BIRTHDAY=1999-02-20
+      - NUMBER=4444
+    networks:
+      - testing_net
+    depends_on:
+      - server
+    volumes:
+      - ./client/config.yaml:/config.yaml
+
+  client3:
+    container_name: client3
+    image: client:latest
+    entrypoint: /client
+    profiles: ["dev"]
+    environment:
+      - CLI_ID=3
+      - CLI_LOG_LEVEL=DEBUG
+      - NAME=Luis Alberto
+      - LASTNAME=Vasquez
+      - DNI=989013923
+      - BIRTHDAY=2000-12-15
+      - NUMBER=2222
+    networks:
+      - testing_net
+    depends_on:
+      - server
+    volumes:
+      - ./client/config.yaml:/config.yaml
+  
+  client4:
+    container_name: client4
+    image: client:latest
+    entrypoint: /client
+    profiles: ["dev"]
+    environment:
+      - CLI_ID=4
+      - CLI_LOG_LEVEL=DEBUG
+      - NAME=Juan
+      - LASTNAME=Motta
+      - DNI=1233445
+      - BIRTHDAY=1999-04-29
+      - NUMBER=1234
+    networks:
+      - testing_net
+    depends_on:
+      - server
+    volumes:
+      - ./client/config.yaml:/config.yaml
+  
+  client5:
+    container_name: client5
+    image: client:latest
+    entrypoint: /client
+    profiles: ["dev"]
+    environment:
+      - CLI_ID=5
+      - CLI_LOG_LEVEL=DEBUG
+      - NAME=Angelo
+      - LASTNAME=Asencios
+      - DNI=71427336
+      - BIRTHDAY=1999-01-28
+      - NUMBER=6666
+    networks:
+      - testing_net
+    depends_on:
+      - server
+    volumes:
+      - ./client/config.yaml:/config.yaml
+
 networks:
   testing_net:
     ipam:
