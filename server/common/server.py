@@ -77,9 +77,22 @@ class Server:
     def __decode(self, bytes_msg):
         content = bytes_msg.decode('UTF-8')
         info = content.split(';')
-        player = Bet(int(info[0]), info[1], info[2], info[3], info[4], info[5])
+        agency = int(info[0])
+        i = 1
+        bets = []
+        while i < len(info):
+            bet = Bet(
+                agency,
+                info[i],
+                info[i+1],
+                info[i+2],
+                info[i+3],
+                info[i+4]
+            )
+            bets.append(bet)
+            i = i + 5
 
-        return player
+        return bets
 
     def __encode(self, msg):
         bytes_msg = msg.to_bytes(RESPONSE_BYTES, byteorder='big')
@@ -96,8 +109,9 @@ class Server:
             return
 
         bytes_msg = self.__recv(client_sock)
-        bet = self.__decode(bytes_msg)
-        store_bets([bet])
+        bets = self.__decode(bytes_msg)
+        for bet in bets:
+            store_bets([bet])
 
         logging.info(f'action: apuesta_almacenada | result: success | dni: {bet.document} | numero: {bet.number}')
 
