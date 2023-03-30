@@ -37,6 +37,7 @@ class Server:
         while not self._shutdown:
             client_sock = self.__accept_new_connection()
             self.__handle_client_connection(client_sock)
+            client_sock.close()
 
     def __recv(self, client_sock):
         msg = b''

@@ -4,7 +4,8 @@
 - Tener instalado **Python3**
 - Tener instalado **Make**
   
-## Ejercicio 1
+## Parte 1
+### Ejercicio 1
 Para ejecutar este ejercicio se agrego el parametro CLIENT al makefile y un script en python. Por lo cual se debera seguir los siguientes pasos.
 
 1. Abrir una terminal
@@ -14,7 +15,7 @@ Para ejecutar este ejercicio se agrego el parametro CLIENT al makefile y un scri
 5. Ejecutar el comando `make docker-compose-logs`
 6. Ejecutar el comando `make docker-compose-down`
 
-## Ejercicio 3
+### Ejercicio 3
 Para ejecutar este ejercicio se agrego el parametro ENV al makefile. Por lo cual se debera seguir los siguientes pasos.
 
 1. Abrir una terminal
@@ -23,6 +24,15 @@ Para ejecutar este ejercicio se agrego el parametro ENV al makefile. Por lo cual
 4. Ejecutar el comando `sudo make docker-compose-up ENV=TEST`.
 5. Ejecutar el comando `sudo make docker-compose-logs ENV=TEST`
 6. Ejecutar el comando `sudo make docker-compose-down ENV=TEST`
+
+## Parte 2
+## Protocolo
+Para este ejercicio se implemento el siguiente protocolo binario:
+
+1. El cliente enviara un paquete en Big Endian que tendra la forma: <size_content><agency>;<name>;<lastname>;<document>;<birthday>;<number>
+2. El servidor recibira dicho paquete y sabra cuantos bytes esperar por el campo <size_content> que mide 2 bytes e indica el tamaño del resto del paquete
+3. Una vez el servidor haya guardado la apuesta, envia un ACK que es un uint32 equivalente a 1.
+4. El cliente lo recibe y termina su ejecucion
 
 # TP0: Docker + Comunicaciones + Concurrencia
 
