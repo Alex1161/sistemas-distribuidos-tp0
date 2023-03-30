@@ -34,7 +34,7 @@ type Client struct {
 type ClientInfo struct {
 	Name		string
 	Lastname   	string
-	DNI 		uint
+	Document 	uint
 	Birthday 	string
 	Number		uint
 }
@@ -68,25 +68,26 @@ func (c *Client) createClientSocket() error {
 	return nil
 }
 
-// Build message in binary with format <SIZE>;<NAME>;<LASTNAME>;<DNI>;<BIRTHDAY>;<NUMBER>
-func (c *Client) encode(clientInfo ClientInfo) []byte {
+func (c *Client) encode() []byte {
 	content := fmt.Sprintf(
-		";%s;%s;%d;%s;%d", 
-		clientInfo.Name, 
-		clientInfo.Lastname,
-		clientInfo.DNI,
-		clientInfo.Birthday,
-		clientInfo.Number,
+		"%s;%s;%s;%d;%s;%d", 
+		c.config.ID,
+		c.clientInfo.Name, 
+		c.clientInfo.Lastname,
+		c.clientInfo.Document,
+		c.clientInfo.Birthday,
+		c.clientInfo.Number,
 	)
-	size := len([]byte(content))
+	content_bytes := []byte(content)
+	size := len(content_bytes)
 
 	size_bytes := make([]byte, 2)
-	binary.LittleEndian.PutUint16(size_bytes[0:], uint16(size))
+	binary.BigEndian.PutUint16(size_bytes[0:], uint16(size))
 	
 	buf := new(bytes.Buffer)
-	err := binary.Write(buf, binary.LittleEndian, content)
+	err := binary.Write(buf, binary.BigEndian, content_bytes)
 	if err != nil {
-		log.Fatalf("action: encoding | result: fail | client_id: %v | error: %v",
+		log.Fatalf("action: encode | result: fail | client_id: %v | error: %v",
 			c.config.ID,
 			err,
 		)
@@ -106,22 +107,8 @@ func (c *Client) encode(clientInfo ClientInfo) []byte {
 	return msg_to_send
 }
 
-// func (c *Client) decode(msg []byte) string {
-// 	content := new(bytes.Buffer)
-//     binary.Read(bytes.NewBuffer(msg[2:]), binary.LittleEndian, &content)
-// 	response := content.String()
-
-// 	log.Infof("action: decoding | result: success | client_id: %v | msg: %v -> %v",
-// 		c.config.ID,
-// 		msg,
-// 		response,
-// 	)
-
-// 	return response
-// }
-
 func (c *Client) decode(msg []byte) uint16 {
-	response := binary.LittleEndian.Uint16(msg[:])
+	response := binary.BigEndian.Uint16(msg[:])
 
 	log.Infof("action: decoding | result: success | client_id: %v | msg: %v -> %v",
 		c.config.ID,
@@ -139,11 +126,10 @@ func min(a, b int) int {
 
 func (c *Client) send_bytes(msg []byte) error {
 	MAX_LEN := 8192 // put in config
-	bytes_sent := 0
 
 	for n:=0; n < len(msg);  {
 		bytes_sent, err := c.conn.Write(
-			msg[n:min(MAX_LEN - 1, len(msg) - n - 1)],
+			msg[n:min(MAX_LEN, len(msg) - n)],
 		)
 		if err != nil {
 			c.conn.Close()
@@ -152,77 +138,44 @@ func (c *Client) send_bytes(msg []byte) error {
 				err,
 			)
 		}
+		
 		n += bytes_sent
 	}
 
-	log.Infof("action: send_bytes | result: success | client_id: %v | msg: %v bytes sent",
+	log.Infof("action: send_bytes | result: success | client_id: %v | msg: %v sent",
 		c.config.ID,
-		bytes_sent,
+		msg,
 	)
 	return nil
 }
 
-// func (c *Client) recv_bytes() []byte {
-// 	MAX_LEN := 8192
-// 	msg := make([]byte, MAX_LEN)
-// 	bytes_recv := 0
-
-// 	for ; bytes_recv < 2; {
-// 		bytes_recv, err := c.conn.Read(msg)
-// 		if err != nil {
-// 			c.conn.Close()
-// 			log.Fatalf("action: recv_bytes | result: fail | client_id: %v | error: %v",
-// 				c.config.ID,
-// 				err,
-// 			)
-// 		}
-// 	}
-
-//     size := binary.BigEndian.Uint16(msg[0:2])
-// 	content := make([]byte, size)
-// 	aux := 0
-// 	for ; bytes_recv < int(size) + 2; bytes_recv += aux {
-// 		aux, err := c.conn.Read(msg)
-// 		if err != nil {
-// 			c.conn.Close()
-// 			log.Fatalf("action: recv_bytes | result: fail | client_id: %v | error: %v",
-// 				c.config.ID,
-// 				err,
-// 			)
-// 		}
-
-// 		content = append(content, msg[:aux]...)
-// 	}
-
-// 	log.Infof("action: send_bytes | result: success | client_id: %v | msg: %v bytes received",
-// 		c.config.ID,
-// 		bytes_recv,
-// 	)
-
-// 	return msg
-// }
-
 func (c *Client) recv_bytes() []byte {
 	RESPONSE_SIZE := 2
-	msg := make([]byte, RESPONSE_SIZE)
+	// msg := make([]byte, RESPONSE_SIZE)
 	response := make([]byte, RESPONSE_SIZE)
-	bytes_recv := 0
-	
+	// bytes_recv := 0
 
-	for aux := 0; bytes_recv < RESPONSE_SIZE; bytes_recv += aux {
-		aux, err := c.conn.Read(msg)
-		if err != nil {
-			c.conn.Close()
-			log.Fatalf("action: recv_bytes | result: fail | client_id: %v | error: %v",
-				c.config.ID,
-				err,
-			)
-		}
+	c.conn.Read(response)
 
-		response = append(response, msg[:aux]...)
-	}
+	// for aux := 0; bytes_recv < RESPONSE_SIZE; bytes_recv += aux {
+	// 	aux, err := c.conn.Read(msg)
+	// 	if err != nil {
+	// 		c.conn.Close()
+	// 		log.Fatalf("action: recv_bytes | result: fail | client_id: %v | error: %v",
+	// 			c.config.ID,
+	// 			err,
+	// 		)
+	// 	}
 
-	return msg
+	// 	response = append(response, msg[:aux]...)
+	// }
+
+	log.Infof("action: recv_bytes | result: success | client_id: %v | msg: %v received",
+		c.config.ID,
+		response,
+	)
+
+	return response
 }
 
 // StartClientLoop Send messages to the client until some time threshold is met
@@ -230,27 +183,28 @@ func (c *Client) StartClientLoop() {
 	c.createClientSocket()
 
 	// Catchig sigterm to shutdown gracefully
-	select {
-	case <-c.shutdown:
-		c.conn.Close()
+	// select {
+	// case <-c.shutdown:
+	// 	c.conn.Close()
 		
-		log.Infof("action: shutdown | result: success | client_id: %v",
-			c.config.ID,
-		)
-		return
-	default:
-	}
+	// 	log.Infof("action: shutdown | result: success | client_id: %v",
+	// 		c.config.ID,
+	// 	)
+	// 	return
+	// default:
+	// }
 
-	bytes_to_send := c.encode(c.clientInfo)
+	bytes_to_send := c.encode()
 	c.send_bytes(bytes_to_send)
 	
 	bytes_recv := c.recv_bytes()
 	response_code := c.decode(bytes_recv)
-	
+	c.conn.Close()
+
 	if response_code == 1 {
 		log.Infof("action: apuesta_enviada | result: success | client_id: %v | dni: %v | numero: %v",
 			c.config.ID,
-			c.clientInfo.DNI,
+			c.clientInfo.Document,
 			c.clientInfo.Number,
 		)
 	} else {
@@ -259,6 +213,4 @@ func (c *Client) StartClientLoop() {
 			response_code,
 		)
 	}
-
-	c.conn.Close()
 }

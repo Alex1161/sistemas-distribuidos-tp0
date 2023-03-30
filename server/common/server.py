@@ -1,6 +1,13 @@
 import socket
 import logging
 import signal
+from common.utils import Bet
+from common.utils import store_bets
+
+MAX_LEN = 8192
+MAX_BYTES_MSG = 2
+RESPONSE_BYTES = 2
+RESPONSE = 1
 
 
 class Server:
@@ -13,7 +20,6 @@ class Server:
         signal.signal(signal.SIGTERM, self.__exit_gracefully)
 
     def __exit_gracefully(self, *args):
-        logging.info('action: shutdown | result: in progress')
         self.__del__()
         logging.info('action: shutdown | result: success')
 
@@ -32,6 +38,53 @@ class Server:
             client_sock = self.__accept_new_connection()
             self.__handle_client_connection(client_sock)
 
+    def __recv(self, client_sock):
+        msg = b''
+        bytes_recv = 0
+        try:
+            while not bytes_recv >= MAX_BYTES_MSG:
+                msg += client_sock.recv(MAX_LEN)
+                bytes_recv += len(msg)
+
+            size = int.from_bytes(msg[0:MAX_BYTES_MSG], 'big')
+            bytes_recv -= MAX_BYTES_MSG
+            while not bytes_recv >= size:
+                msg += client_sock.recv(size)
+                bytes_recv += len(msg)
+
+            addr = client_sock.getpeername()
+            logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {msg}')
+        except OSError as e:
+            logging.error(f"action: receive_message | result: fail | error: {e}")
+            client_sock.close()
+
+        return msg[2:]
+
+    def __send(self, client_sock, bytes_msg):
+        try:
+            sent = 0
+            client_sock.send(bytes_msg)
+            # while sent >= RESPONSE_BYTES:
+                # sent += client_sock.send(bytes_msg)
+
+            addr = client_sock.getpeername()
+            logging.info(f'action: send_message | result: success | ip: {addr[0]} | msg: {bytes_msg}')
+        except OSError as e:
+            client_sock.close()
+            logging.error(f"action: send_message | result: fail | error: {e}")
+        return
+
+    def __decode(self, bytes_msg):
+        content = bytes_msg.decode('UTF-8')
+        info = content.split(';')
+        player = Bet(int(info[0]), info[1], info[2], info[3], info[4], info[5])
+
+        return player
+
+    def __encode(self, msg):
+        bytes_msg = msg.to_bytes(RESPONSE_BYTES, byteorder='big')
+        return bytes_msg
+
     def __handle_client_connection(self, client_sock):
         """
         Read message from a specific client socket and closes the socket
@@ -42,17 +95,14 @@ class Server:
         if self._shutdown:
             return
 
-        try:
-            # TODO: Modify the receive to avoid short-reads
-            msg = client_sock.recv(1024).rstrip().decode('utf-8')
-            addr = client_sock.getpeername()
-            logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {msg}')
-            # TODO: Modify the send to avoid short-writes
-            client_sock.send("{}\n".format(msg).encode('utf-8'))
-        except OSError as e:
-            logging.error("action: receive_message | result: fail | error: {e}")
-        finally:
-            client_sock.close()
+        bytes_msg = self.__recv(client_sock)
+        bet = self.__decode(bytes_msg)
+        store_bets([bet])
+
+        logging.info(f'action: apuesta_almacenada | result: success | dni: {bet.document} | numero: {bet.number}')
+
+        response = self.__encode(RESPONSE)
+        self.__send(client_sock, response)
 
     def __accept_new_connection(self):
         """

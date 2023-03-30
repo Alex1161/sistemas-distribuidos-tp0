@@ -125,7 +125,7 @@ func main() {
 	clientInfo := common.ClientInfo{
 		Name:		v.GetString("name"),
 		Lastname:	v.GetString("lastname"),
-		DNI:		v.GetUint("dni"),
+		Document:		v.GetUint("dni"),
 		Birthday:	v.GetString("birthday"),
 		Number:		v.GetUint("number"),
 	}
