@@ -4,6 +4,10 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"os"
+	"bufio"
+	"strconv"
+	"strings"
 	"strconv"
 
 	"github.com/pkg/errors"
@@ -22,12 +26,6 @@ import (
 func InitConfig() (*viper.Viper, error) {
 	v := viper.New()
 
-	v.BindEnv("name")
-	v.BindEnv("lastname")
-	v.BindEnv("dni")
-	v.BindEnv("birthday")
-	v.BindEnv("number")
-
 	// Configure viper to read env variables with the CLI_ prefix
 	v.AutomaticEnv()
 	v.SetEnvPrefix("cli")
@@ -39,6 +37,7 @@ func InitConfig() (*viper.Viper, error) {
 	// Add env variables supported
 	v.BindEnv("id")
 	v.BindEnv("server", "address")
+	v.BindEnv("server", "chunk_size")
 	v.BindEnv("loop", "period")
 	v.BindEnv("loop", "lapse")
 	v.BindEnv("log", "level")
@@ -61,12 +60,8 @@ func InitConfig() (*viper.Viper, error) {
 		return nil, errors.Wrapf(err, "Could not parse CLI_LOOP_PERIOD env var as time.Duration.")
 	}
 
-	if _, err := strconv.ParseUint(v.GetString("dni"), 10, 32); err != nil {
-		return nil, errors.Wrapf(err, "Could not parse DNI env var as uint.")
-	}
-
-	if _, err := strconv.ParseUint(v.GetString("number"), 10, 32); err != nil {
-		return nil, errors.Wrapf(err, "Could not parse NUMBER env var as uint.")
+	if _, err := strconv.ParseUint(v.GetString("server.chunk_size"), 10, 32); err != nil {
+		return nil, errors.Wrapf(err, "Could not parse server.chunk_size config var as uint.")
 	}
 
 	return v, nil
@@ -93,13 +88,27 @@ func InitLogger(logLevel string) error {
 // PrintConfig Print all the configuration parameters of the program.
 // For debugging purposes only
 func PrintConfig(v *viper.Viper) {
-	logrus.Infof("action: config | result: success | client_id: %s | server_address: %s | loop_lapse: %v | loop_period: %v | log_level: %s",
+	logrus.Infof("action: config | result: success | client_id: %s | server_address: %s | loop_lapse: %v | loop_period: %v | log_level: %s | server_chunk_size: %v",
 	    v.GetString("id"),
 	    v.GetString("server.address"),
 	    v.GetDuration("loop.lapse"),
 	    v.GetDuration("loop.period"),
 	    v.GetString("log.level"),
+		v.GetUint("server.chunk_size"),
     )
+}
+
+func CreateClientInfoFrom(line string) common.ClientInfo {
+	fields := strings.Split(line, ",")
+	document, _ := strconv.ParseUint(fields[2], 10, 32)
+	number, _ := strconv.ParseUint(fields[4], 10, 32)
+	return common.ClientInfo {
+		Name: 		fields[0],
+		Lastname:	fields[1],
+		Document:   uint(document),
+		Birthday:    fields[3],
+		Number:	   uint(number),
+	}
 }
 
 func main() {
@@ -120,16 +129,23 @@ func main() {
 		ID:            v.GetString("id"),
 		LoopLapse:     v.GetDuration("loop.lapse"),
 		LoopPeriod:    v.GetDuration("loop.period"),
+		ChunkSize:	   v.GetUint("server.chunk_size"),
 	}
 
-	clientInfo := common.ClientInfo{
-		Name:		v.GetString("name"),
-		Lastname:	v.GetString("lastname"),
-		Document:		v.GetUint("dni"),
-		Birthday:	v.GetString("birthday"),
-		Number:		v.GetUint("number"),
-	}
+	file, err := os.Open("/agency.csv")
+    if err != nil {
+        log.Fatalf("%s", err)
+    }
+    defer file.Close()
 
-	client := common.NewClient(clientConfig, clientInfo)
+	client := common.NewClient(clientConfig)
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		clientInfo := CreateClientInfoFrom(scanner.Text())
+
+	}
+	if err := scanner.Err(); err != nil {
+		log.Fatalf("%s", err)
+	}
 	client.StartClientLoop()
 }

@@ -20,14 +20,15 @@ type ClientConfig struct {
 	ServerAddress string
 	LoopLapse     time.Duration
 	LoopPeriod    time.Duration
+	ChunkSize	  uint
 }
 
 // Client Entity that encapsulates how
 type Client struct {
 	config ClientConfig
 	conn   net.Conn
-	clientInfo ClientInfo
 	shutdown chan os.Signal 
+	chunk	[]byte
 }
 
 // ClientInfo Entity
@@ -41,14 +42,17 @@ type ClientInfo struct {
 
 // NewClient Initializes a new client receiving the configuration
 // as a parameter
-func NewClient(config ClientConfig, clientInfo ClientInfo) *Client {
+func NewClient(config ClientConfig) *Client {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGTERM)
 	client := &Client{
 		config: config,
 		shutdown: sigs,
-		clientInfo: clientInfo,
+		chunk: []byte(""),
 	}
+
+	client.createClientSocket()
+
 	return client
 }
 
@@ -68,21 +72,33 @@ func (c *Client) createClientSocket() error {
 	return nil
 }
 
-func (c *Client) encode() []byte {
-	content := fmt.Sprintf(
-		"%s;%s;%s;%d;%s;%d", 
-		c.config.ID,
-		c.clientInfo.Name, 
-		c.clientInfo.Lastname,
-		c.clientInfo.Document,
-		c.clientInfo.Birthday,
-		c.clientInfo.Number,
+func (c *Client) add_header(content []byte) []byte {
+	id := []byte(c.config.ID)
+	content_bytes := bytes.Join(
+		[][]byte{id, content}, 
+		[]byte(";"),
 	)
-	content_bytes := []byte(content)
 	size := len(content_bytes)
-
 	size_bytes := make([]byte, 2)
 	binary.BigEndian.PutUint16(size_bytes[0:], uint16(size))
+	msg_to_send := bytes.Join(
+		[][]byte{size_bytes, content_bytes}, 
+		[]byte(""),
+	)
+
+	return msg_to_send
+}
+
+func (c *Client) encode_content(clientInfo ClientInfo) []byte {
+	content := fmt.Sprintf(
+		"%s;%s;%d;%s;%d", 
+		clientInfo.Name, 
+		clientInfo.Lastname,
+		clientInfo.Document,
+		clientInfo.Birthday,
+		clientInfo.Number,
+	)
+	content_bytes := []byte(content)
 	
 	buf := new(bytes.Buffer)
 	err := binary.Write(buf, binary.BigEndian, content_bytes)
@@ -93,18 +109,7 @@ func (c *Client) encode() []byte {
 		)
 	}
 
-	msg_to_send := bytes.Join(
-		[][]byte{size_bytes, buf.Bytes()}, 
-		[]byte(""),
-	)
-
-	log.Infof("action: encoding | result: success | client_id: %v | msg: %v -> %v",
-		c.config.ID,
-		content,
-		msg_to_send,
-	)
-
-	return msg_to_send
+	return buf.Bytes()
 }
 
 func (c *Client) decode(msg []byte) uint16 {
@@ -179,10 +184,37 @@ func (c *Client) recv_bytes() []byte {
 	return response
 }
 
-// StartClientLoop Send messages to the client until some time threshold is met
-func (c *Client) StartClientLoop() {
-	c.createClientSocket()
+func (c *Client) Flush() {
+	bytes_to_send := c.add_header(c.chunk)
+	c.send_bytes(bytes_to_send)
+	
+	bytes_recv := c.recv_bytes()
+	response_code := c.decode(bytes_recv)
+	c.conn.Close()
 
+	if response_code == 1 {
+		log.Infof("action: chunk_sent | result: success | client_id: %v",
+			c.config.ID,
+		)
+	} else {
+		log.Errorf("action: chunk_sent | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			response_code,
+		)
+	}
+
+	c.chunk = []byte("")
+}
+
+func (c *Client) add_client(info_encoded []byte) {
+	c.chunk = bytes.Join (
+		[][]byte{c.chunk, info_encoded}, 
+		[]byte(";"),
+	)
+}
+
+// StartClientLoop Send messages to the client until some time threshold is met
+func (c *Client) Send_number(clientInfo ClientInfo) {
 	// Catchig sigterm to shutdown gracefully
 	select {
 	case <-c.shutdown:
@@ -195,23 +227,10 @@ func (c *Client) StartClientLoop() {
 	default:
 	}
 
-	bytes_to_send := c.encode()
-	c.send_bytes(bytes_to_send)
-	
-	bytes_recv := c.recv_bytes()
-	response_code := c.decode(bytes_recv)
-	c.conn.Close()
-
-	if response_code == 1 {
-		log.Infof("action: apuesta_enviada | result: success | client_id: %v | dni: %v | numero: %v",
-			c.config.ID,
-			c.clientInfo.Document,
-			c.clientInfo.Number,
-		)
-	} else {
-		log.Errorf("action: apuesta_enviada | result: fail | client_id: %v | error: %v",
-			c.config.ID,
-			response_code,
-		)
+	client_encoded := c.encode_content(clientInfo)
+	if (uint(len(c.chunk) + len(client_encoded)) >= c.config.ChunkSize) {
+		c.Flush()
 	}
+
+	c.add_client(client_encoded)
 }
