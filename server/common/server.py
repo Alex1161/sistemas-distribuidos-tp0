@@ -53,8 +53,6 @@ class Server:
                 msg += client_sock.recv(size)
                 bytes_recv += len(msg)
 
-            addr = client_sock.getpeername()
-            logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {msg}')
         except OSError as e:
             logging.error(f"action: receive_message | result: fail | error: {e}")
             client_sock.close()
@@ -67,8 +65,6 @@ class Server:
             while not sent >= RESPONSE_BYTES:
                 sent += client_sock.send(bytes_msg)
 
-            addr = client_sock.getpeername()
-            logging.info(f'action: send_message | result: success | ip: {addr[0]} | msg: {bytes_msg}')
         except OSError as e:
             client_sock.close()
             logging.error(f"action: send_message | result: fail | error: {e}")
@@ -113,7 +109,7 @@ class Server:
         for bet in bets:
             store_bets([bet])
 
-        logging.info(f'action: apuesta_almacenada | result: success | dni: {bet.document} | numero: {bet.number}')
+        logging.info(f'action: apuestas_almacenada | result: success')
 
         response = self.__encode(RESPONSE)
         self.__send(client_sock, response)
@@ -132,6 +128,7 @@ class Server:
             c, addr = self._server_socket.accept()
         except OSError:
             return
+
         logging.info(f'action: accept_connections | result: success | ip: {addr[0]}')
         return c
 

@@ -7,8 +7,6 @@ import (
 	"os"
 	"bufio"
 	"strconv"
-	"strings"
-	"strconv"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -142,10 +140,10 @@ func main() {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		clientInfo := CreateClientInfoFrom(scanner.Text())
-
+		client.Send_number(clientInfo)
 	}
 	if err := scanner.Err(); err != nil {
 		log.Fatalf("%s", err)
 	}
-	client.StartClientLoop()
+	client.Flush() //Just in case
 }

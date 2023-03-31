@@ -48,7 +48,7 @@ func NewClient(config ClientConfig) *Client {
 	client := &Client{
 		config: config,
 		shutdown: sigs,
-		chunk: []byte(""),
+		chunk: nil,
 	}
 
 	client.createClientSocket()
@@ -114,13 +114,6 @@ func (c *Client) encode_content(clientInfo ClientInfo) []byte {
 
 func (c *Client) decode(msg []byte) uint16 {
 	response := binary.BigEndian.Uint32(msg[:])
-
-	log.Infof("action: decoding | result: success | client_id: %v | msg: %v -> %v",
-		c.config.ID,
-		msg,
-		response,
-	)
-
 	return uint16(response)
 }
 
@@ -147,10 +140,6 @@ func (c *Client) send_bytes(msg []byte) error {
 		n += bytes_sent
 	}
 
-	log.Infof("action: send_bytes | result: success | client_id: %v | msg: %v sent",
-		c.config.ID,
-		msg,
-	)
 	return nil
 }
 
@@ -159,8 +148,6 @@ func (c *Client) recv_bytes() []byte {
 	msg := make([]byte, RESPONSE_SIZE)
 	response := make([]byte, RESPONSE_SIZE)
 	bytes_recv := 0
-
-	// c.conn.Read(response)
 
 	for ; bytes_recv < RESPONSE_SIZE; {
 		aux, err := c.conn.Read(msg)
@@ -176,15 +163,14 @@ func (c *Client) recv_bytes() []byte {
 		response = append(response, msg[:aux]...)
 	}
 
-	log.Infof("action: recv_bytes | result: success | client_id: %v | msg: %v received",
-		c.config.ID,
-		response,
-	)
-
 	return response
 }
 
 func (c *Client) Flush() {
+	if c.chunk == nil {
+		return
+	}
+
 	bytes_to_send := c.add_header(c.chunk)
 	c.send_bytes(bytes_to_send)
 	
@@ -203,14 +189,18 @@ func (c *Client) Flush() {
 		)
 	}
 
-	c.chunk = []byte("")
+	c.chunk = nil
 }
 
 func (c *Client) add_client(info_encoded []byte) {
-	c.chunk = bytes.Join (
-		[][]byte{c.chunk, info_encoded}, 
-		[]byte(";"),
-	)
+	if c.chunk == nil {
+		c.chunk = info_encoded
+	} else {
+		c.chunk = bytes.Join (
+			[][]byte{c.chunk, info_encoded}, 
+			[]byte(";"),
+		)
+	}
 }
 
 // StartClientLoop Send messages to the client until some time threshold is met
