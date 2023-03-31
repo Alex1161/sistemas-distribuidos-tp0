@@ -145,5 +145,5 @@ func main() {
 	if err := scanner.Err(); err != nil {
 		log.Fatalf("%s", err)
 	}
-	client.Flush() //Just in case
+	client.EndConnection()
 }

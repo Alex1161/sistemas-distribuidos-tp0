@@ -166,7 +166,7 @@ func (c *Client) recv_bytes() []byte {
 	return response
 }
 
-func (c *Client) Flush() {
+func (c *Client) flush() {
 	if c.chunk == nil {
 		return
 	}
@@ -219,8 +219,12 @@ func (c *Client) Send_number(clientInfo ClientInfo) {
 
 	client_encoded := c.encode_content(clientInfo)
 	if (uint(len(c.chunk) + len(client_encoded)) >= c.config.ChunkSize) {
-		c.Flush()
+		c.flush()
 	}
 
 	c.add_client(client_encoded)
+}
+
+func (c *Client) EndConnection() {
+	FINISH := []byte("#")
 }
