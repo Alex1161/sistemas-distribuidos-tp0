@@ -64,13 +64,26 @@ class Server:
             for p in self._process:
                 p.join()
 
+            self._process = []
             logging.info(f'action: sorteo | result: success')
+            database_lock.acquire()
             all_bets = load_bets()
+            database_lock.release()
             winners = list(filter(lambda b: has_won(b), all_bets))
 
-            while not self._shutdown and len(connections) > 0:
+            while not self._shutdown and len(self._process) < MAX_CONNECTIONS:
                 conn = connections.pop(0)
-                self.__handle_client_get_winners(conn, winners)
+                p = Process(
+                    target=self.__handle_client_get_winners,
+                    args=(conn, winners,)
+                )
+                p.start()
+                self._process.append(p)
+
+            for p in self._process:
+                p.join()
+
+        logging.info(f'action: server_done | result: success')
 
     def __recv(self, connection):
         msg = b''
@@ -187,7 +200,8 @@ class Server:
         if size == 0:
             content = ";"
         else:
-            content = str(size) + content
+            content = str(size) + ";" + content
+
         winners_to_send = bytes(content, 'utf-8')
         self.__send(connection, winners_to_send, len(winners_to_send))
         logging.info(f'action: send_winners | result: success | client_id: {agency}')

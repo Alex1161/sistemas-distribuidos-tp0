@@ -266,12 +266,12 @@ func contains(s []byte, str byte) bool {
 
 func (c *Client) recv_winners() []string {
 	MAX_LEN := 8192
-	msg := make([]byte, MAX_LEN)
+	msg := []byte("")
 	buf := make([]byte, MAX_LEN)
 	bytes_recv := 0
 	DELIMITER := ';'
 	
-	for ; !bytes.ContainsRune(msg, DELIMITER); {
+	for ; ; {
 		aux, err := c.conn.Read(buf)
 		if err != nil {
 			c.conn.Close()
@@ -282,10 +282,17 @@ func (c *Client) recv_winners() []string {
 		}
 
 		bytes_recv += aux
-		msg = append(msg, buf[:aux]...)
+		msg = bytes.Join(
+			[][]byte{msg, buf[:aux]},
+			[]byte(""),
+		)	
+		if (bytes.ContainsRune(msg[:bytes_recv], DELIMITER)) {
+			break
+		}
 	}
 
-	size_bytes := msg[0:bytes.IndexRune(msg, DELIMITER)] 
+	start := bytes.IndexRune(msg, DELIMITER)
+	size_bytes := msg[0:start]
 	size, _ := strconv.ParseUint(string(size_bytes), 10, 32)
 	new_buff := make([]byte, size)
 	for ; bytes_recv < int(size); {
@@ -297,12 +304,12 @@ func (c *Client) recv_winners() []string {
 				err,
 			)
 		}
-		log.Infof("asdfadf")
 
 		bytes_recv += aux
 		msg = append(msg, new_buff[:aux]...)
 	}
-	return strings.Split(string(msg[size:]), ";")
+
+	return strings.Split(string(msg[start+1:bytes_recv]), ";")
 }
 
 func (c *Client) send_agency() error {
