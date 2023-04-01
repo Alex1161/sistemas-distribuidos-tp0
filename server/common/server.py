@@ -172,7 +172,7 @@ class Server:
         if size == 0:
             content = ";"
         else:
-            content = str(size) + content
+            content = str(size) + ";" + content
         winners_to_send = bytes(content, 'utf-8')
         self.__send(connection, winners_to_send, len(winners_to_send))
         logging.info(f'action: send_winners | result: success | client_id: {agency}')
