@@ -12,14 +12,21 @@ RESPONSE_BYTES = 2
 RESPONSE = 1
 CONTINUE = 1
 END = 0
+RECV_BETS = 1
+SEND_WINNERS = 2
 
+
+class Connection:
+    def __init__(self, conn):
+        self.conn = conn
+        self.agency = None
+        self.state = RECV_BETS
 
 class Server:
     def __init__(self, port, listen_backlog):
         # Initialize server socket
         self._shutdown = False
-        self._current_agency = None
-        self._process_finished = []
+        self._connections = []
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
@@ -40,53 +47,54 @@ class Server:
 
         # TODO: Modify this program to handle signal to graceful shutdown
         # the server
-        while not self._shutdown:
-            client_sock = self.__accept_new_connection()
-            self.__handle_client_connection(client_sock)
-            if client_sock is not None:
-                client_sock.shutdown(socket.SHUT_RDWR)
-                client_sock.close()
-                logging.info(f'action: apuestas_almacenada | result: success | client_id: {self._current_agency}')
-
-            if len(self._process_finished) == 5:
-                break
+        while not self._shutdown and len(self._connections) < 5:
+            conn = self.__accept_new_connection()
+            self.__handle_client_connection(conn)
+            logging.info(f'action: apuestas_almacenada | result: success | client_id: {conn.agency}')
 
         logging.info(f'action: sorteo | result: success')
         all_bets = load_bets()
         winners = filter(lambda b: has_won(b), all_bets)
 
-        print(list(map(lambda x: x.document, winners)))
+        # while not self._shutdown and len(self._connections) > 0:
+        #     conn = self._connections.pop(0)
+        #     self.__handle_client_connection(conn, winners)
 
-    def __recv(self, client_sock):
+        # print(list(map(lambda x: x.document, winners)))
+
+    def __recv(self, connection):
         msg = b''
         bytes_recv = 0
         try:
             while not bytes_recv >= MAX_BYTES_MSG:
-                msg += client_sock.recv(MAX_LEN)
+                msg += connection.conn.recv(MAX_LEN)
                 bytes_recv += len(msg)
 
             size = int.from_bytes(msg[0:MAX_BYTES_MSG], 'big')
             bytes_recv -= MAX_BYTES_MSG
             while not bytes_recv >= size:
-                msg += client_sock.recv(size)
+                msg += connection.conn.recv(size)
                 bytes_recv += len(msg)
 
-            self._continue_conn = bool(int.from_bytes(msg[-2:], 'big'))
+            if bool(int.from_bytes(msg[-2:], 'big')) == CONTINUE:
+                connection.state = RECV_BETS
+            else:
+                connection.state = SEND_WINNERS
 
         except OSError as e:
             logging.error(f"action: receive_message | result: fail | error: {e}")
-            client_sock.close()
+            connection.conn.close()
 
         return msg[2:-2]
 
-    def __send(self, client_sock, bytes_msg):
+    def __send(self, connection, bytes_msg):
         try:
             sent = 0
             while not sent >= RESPONSE_BYTES:
-                sent += client_sock.send(bytes_msg)
+                sent += connection.conn.send(bytes_msg)
 
         except OSError as e:
-            client_sock.close()
+            connection.conn.close()
             logging.error(f"action: send_message | result: fail | error: {e}")
         return
 
@@ -114,26 +122,26 @@ class Server:
         bytes_msg = msg.to_bytes(RESPONSE_BYTES, byteorder='big')
         return bytes_msg
 
-    def __handle_client_connection(self, client_sock):
+    def __handle_client_connection(self, connection, winners = None):
         """
         Read message from a specific client socket and closes the socket
 
         If a problem arises in the communication with the client, the
         client socket will also be closed
         """
-        while self._continue_conn:
+        while connection.state == RECV_BETS:
             if self._shutdown:
                 return
 
-            bytes_msg = self.__recv(client_sock)
-            if self._continue_conn:
-                self._current_agency, bets = self.__decode(bytes_msg)
+            bytes_msg = self.__recv(connection)
+            if connection.state == RECV_BETS:
+                connection.agency, bets = self.__decode(bytes_msg)
                 store_bets(bets)
             else:
-                self._process_finished.append(self._current_agency)
+                self._connections.append(connection)
 
             response = self.__encode(RESPONSE)
-            self.__send(client_sock, response)
+            self.__send(connection, response)
 
     def __accept_new_connection(self):
         """
@@ -151,8 +159,7 @@ class Server:
             return
 
         logging.info(f'action: accept_connections | result: success | ip: {addr[0]}')
-        self._continue_conn = True
-        return c
+        return Connection(c)
 
     def __del__(self):
         self._shutdown = True
