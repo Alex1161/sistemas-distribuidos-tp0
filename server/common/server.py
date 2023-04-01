@@ -1,6 +1,7 @@
 import socket
 import logging
 import signal
+from multiprocessing import Process, Value, Array, Lock, Manager
 from common.utils import Bet
 from common.utils import store_bets
 from common.utils import load_bets
@@ -27,8 +28,8 @@ class Server:
     def __init__(self, port, listen_backlog):
         # Initialize server socket
         self._shutdown = False
-        self._connections = []
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._process = []
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
         signal.signal(signal.SIGTERM, self.__exit_gracefully)
@@ -48,18 +49,28 @@ class Server:
 
         # TODO: Modify this program to handle signal to graceful shutdown
         # the server
-        while not self._shutdown and len(self._connections) < MAX_CONNECTIONS:
-            conn = self.__accept_new_connection()
-            self.__handle_client_connection(conn)
-            logging.info(f'action: apuestas_almacenada | result: success | client_id: {conn.agency}')
+        with Manager() as manager:
+            connections = manager.list()
+            database_lock = Lock()
+            while not self._shutdown and len(self._process) < MAX_CONNECTIONS:
+                conn = self.__accept_new_connection()
+                p = Process(
+                    target=self.__handle_client_connection,
+                    args=(conn, connections, database_lock)
+                )
+                p.start()
+                self._process.append(p)
 
-        logging.info(f'action: sorteo | result: success')
-        all_bets = load_bets()
-        winners = list(filter(lambda b: has_won(b), all_bets))
+            for p in self._process:
+                p.join()
 
-        while not self._shutdown and len(self._connections) > 0:
-            conn = self._connections.pop(0)
-            self.__handle_client_get_winners(conn, winners)
+            logging.info(f'action: sorteo | result: success')
+            all_bets = load_bets()
+            winners = list(filter(lambda b: has_won(b), all_bets))
+
+            while not self._shutdown and len(connections) > 0:
+                conn = connections.pop(0)
+                self.__handle_client_get_winners(conn, winners)
 
     def __recv(self, connection):
         msg = b''
@@ -138,7 +149,7 @@ class Server:
         bytes_msg = msg.to_bytes(RESPONSE_BYTES, byteorder='big')
         return bytes_msg
 
-    def __handle_client_connection(self, connection):
+    def __handle_client_connection(self, connection, connections, database_lock):
         """
         Read message from a specific client socket and closes the socket
 
@@ -152,12 +163,16 @@ class Server:
             bytes_msg = self.__recv(connection)
             if connection.state == RECV_BETS:
                 connection.agency, bets = self.__decode(bytes_msg)
+                database_lock.acquire()
                 store_bets(bets)
+                database_lock.release()
             else:
-                self._connections.append(connection)
+                connections.append(connection)
 
             response = self.__encode(RESPONSE)
             self.__send(connection, response, RESPONSE_BYTES)
+
+        logging.info(f'action: apuestas_almacenada | result: success | client_id: {connection.agency}')
 
     def __handle_client_get_winners(self, connection, winners):
         if self._shutdown:
