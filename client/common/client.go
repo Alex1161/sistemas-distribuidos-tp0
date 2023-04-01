@@ -191,11 +191,7 @@ func (c *Client) flush(continue_sending uint16) {
 	bytes_recv := c.recv_bytes()
 	response_code := c.decode(bytes_recv)
 
-	if response_code == 1 {
-		log.Infof("action: chunk_sent | result: success | client_id: %v",
-			c.config.ID,
-		)
-	} else {
+	if response_code != 1 {
 		c.conn.Close()
 		log.Errorf("action: chunk_sent | result: fail | client_id: %v | error: %v",
 			c.config.ID,
@@ -220,6 +216,7 @@ func (c *Client) add_client(info_encoded []byte) {
 // StartClientLoop Send messages to the client until some time threshold is met
 func (c *Client) Send_number(clientInfo ClientInfo) {
 	CONTINUE := 1
+	HEADER_SIZE := 7
 	// Catchig sigterm to shutdown gracefully
 	select {
 	case <-c.shutdown:
@@ -233,7 +230,7 @@ func (c *Client) Send_number(clientInfo ClientInfo) {
 	}
 
 	client_encoded := c.encode_content(clientInfo)
-	if (uint(len(c.chunk) + len(client_encoded)) >= c.config.ChunkSize) {
+	if (uint(len(c.chunk) + len(client_encoded) + HEADER_SIZE) >= c.config.ChunkSize) {
 		c.flush(uint16(CONTINUE))
 	}
 
@@ -244,4 +241,7 @@ func (c *Client) EndConnection() {
 	CONTINUE := 0
 	c.flush(uint16(CONTINUE))
 	c.conn.Close()
+	log.Infof("action: apuestas_enviadas | result: success | client_id: %v",
+		c.config.ID,
+	)
 }

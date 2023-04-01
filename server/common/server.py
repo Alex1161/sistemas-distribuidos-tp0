@@ -16,7 +16,6 @@ class Server:
     def __init__(self, port, listen_backlog):
         # Initialize server socket
         self._shutdown = False
-        self._continue_conn = True
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
@@ -40,7 +39,11 @@ class Server:
         while not self._shutdown:
             client_sock = self.__accept_new_connection()
             self.__handle_client_connection(client_sock)
-            client_sock.close()
+            if client_sock is not None:
+                addr = client_sock.getpeername()
+                client_sock.shutdown(socket.SHUT_RDWR)
+                client_sock.close()
+                logging.info(f'action: apuestas_almacenada | result: success | client: {addr[0]}')
 
     def __recv(self, client_sock):
         msg = b''
@@ -111,11 +114,10 @@ class Server:
                 return
 
             bytes_msg = self.__recv(client_sock)
-            bets = self.__decode(bytes_msg)
-            for bet in bets:
-                store_bets([bet])
-
-            logging.info(f'action: apuestas_almacenada | result: success')
+            if self._continue_conn:
+                bets = self.__decode(bytes_msg)
+                for bet in bets:
+                    store_bets([bet])
 
             response = self.__encode(RESPONSE)
             self.__send(client_sock, response)
@@ -136,6 +138,7 @@ class Server:
             return
 
         logging.info(f'action: accept_connections | result: success | ip: {addr[0]}')
+        self._continue_conn = True
         return c
 
     def __del__(self):
