@@ -3,6 +3,8 @@ import logging
 import signal
 from common.utils import Bet
 from common.utils import store_bets
+from common.utils import load_bets
+from common.utils import has_won
 
 MAX_LEN = 8192
 MAX_BYTES_MSG = 2
@@ -45,6 +47,15 @@ class Server:
                 client_sock.shutdown(socket.SHUT_RDWR)
                 client_sock.close()
                 logging.info(f'action: apuestas_almacenada | result: success | client_id: {self._current_agency}')
+
+            if len(self._process_finished) == 5:
+                break
+
+        logging.info(f'action: sorteo | result: success')
+        all_bets = load_bets()
+        winners = filter(lambda b: has_won(b), all_bets)
+
+        print(list(map(lambda x: x.document, winners)))
 
     def __recv(self, client_sock):
         msg = b''
