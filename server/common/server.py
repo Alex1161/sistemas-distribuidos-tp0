@@ -14,6 +14,7 @@ CONTINUE = 1
 END = 0
 RECV_BETS = 1
 SEND_WINNERS = 2
+MAX_CONNECTIONS = 5
 
 
 class Connection:
@@ -47,20 +48,18 @@ class Server:
 
         # TODO: Modify this program to handle signal to graceful shutdown
         # the server
-        while not self._shutdown and len(self._connections) < 5:
+        while not self._shutdown and len(self._connections) < MAX_CONNECTIONS:
             conn = self.__accept_new_connection()
             self.__handle_client_connection(conn)
             logging.info(f'action: apuestas_almacenada | result: success | client_id: {conn.agency}')
 
         logging.info(f'action: sorteo | result: success')
         all_bets = load_bets()
-        winners = filter(lambda b: has_won(b), all_bets)
+        winners = list(filter(lambda b: has_won(b), all_bets))
 
-        # while not self._shutdown and len(self._connections) > 0:
-        #     conn = self._connections.pop(0)
-        #     self.__handle_client_connection(conn, winners)
-
-        # print(list(map(lambda x: x.document, winners)))
+        while not self._shutdown and len(self._connections) > 0:
+            conn = self._connections.pop(0)
+            self.__handle_client_get_winners(conn, winners)
 
     def __recv(self, connection):
         msg = b''
@@ -87,16 +86,33 @@ class Server:
 
         return msg[2:-2]
 
-    def __send(self, connection, bytes_msg):
+    def __send(self, connection, bytes_msg, size):
         try:
             sent = 0
-            while not sent >= RESPONSE_BYTES:
+            while not sent >= size:
                 sent += connection.conn.send(bytes_msg)
 
         except OSError as e:
             connection.conn.close()
             logging.error(f"action: send_message | result: fail | error: {e}")
         return
+
+    def __recv_agency(self, connection):
+        msg = b''
+        bytes_recv = 0
+        try:
+            while not bytes_recv >= MAX_BYTES_MSG:
+                msg += connection.conn.recv(MAX_BYTES_MSG)
+                bytes_recv += len(msg)
+
+            agency = int.from_bytes(msg[0:MAX_BYTES_MSG], 'big')
+
+        except OSError as e:
+            logging.error(f"action: receive_message | result: fail | error: {e}")
+            connection.conn.close()
+
+        logging.info(f'action: request_winner_recv | result: in:progress | client_id: {agency}')
+        return agency
 
     def __decode(self, bytes_msg):
         content = bytes_msg.decode('UTF-8')
@@ -122,7 +138,7 @@ class Server:
         bytes_msg = msg.to_bytes(RESPONSE_BYTES, byteorder='big')
         return bytes_msg
 
-    def __handle_client_connection(self, connection, winners = None):
+    def __handle_client_connection(self, connection):
         """
         Read message from a specific client socket and closes the socket
 
@@ -141,7 +157,25 @@ class Server:
                 self._connections.append(connection)
 
             response = self.__encode(RESPONSE)
-            self.__send(connection, response)
+            self.__send(connection, response, RESPONSE_BYTES)
+
+    def __handle_client_get_winners(self, connection, winners):
+        if self._shutdown:
+            return
+
+        agency = self.__recv_agency(connection)
+        winners_agency = filter(lambda w: w.agency == agency, winners)
+        winners_document = list(map(lambda x: x.document, winners_agency))
+
+        content = ";".join(winners_document)
+        size = len(content)
+        if size == 0:
+            content = ";"
+        else:
+            content = str(size) + content
+        winners_to_send = bytes(content, 'utf-8')
+        self.__send(connection, winners_to_send, len(winners_to_send))
+        logging.info(f'action: send_winners | result: success | client_id: {agency}')
 
     def __accept_new_connection(self):
         """

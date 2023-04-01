@@ -6,6 +6,8 @@ import (
 	"time"
 	"encoding/binary"
 	"bytes"
+	"strconv"
+	"strings"
 	"math"
 	"os"
     "os/signal"
@@ -240,8 +242,89 @@ func (c *Client) Send_number(clientInfo ClientInfo) {
 func (c *Client) EndConnection() {
 	CONTINUE := 0
 	c.flush(uint16(CONTINUE))
-	c.conn.Close()
 	log.Infof("action: apuestas_enviadas | result: success | client_id: %v",
 		c.config.ID,
 	)
+	c.send_agency()
+	winners := c.recv_winners()
+	log.Infof("action: consulta_ganadores | result: success | cant_ganadores: %v | client_id: %v",
+		len(winners),
+		c.config.ID,
+	)
+	c.conn.Close()
+}
+
+func contains(s []byte, str byte) bool {
+	for _, v := range s {
+		if v == str {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (c *Client) recv_winners() []string {
+	MAX_LEN := 8192
+	msg := make([]byte, MAX_LEN)
+	buf := make([]byte, MAX_LEN)
+	bytes_recv := 0
+	DELIMITER := ';'
+	
+	for ; !bytes.ContainsRune(msg, DELIMITER); {
+		aux, err := c.conn.Read(buf)
+		if err != nil {
+			c.conn.Close()
+			log.Fatalf("action: recv_bytes | result: fail | client_id: %v | error: %v",
+				c.config.ID,
+				err,
+			)
+		}
+
+		bytes_recv += aux
+		msg = append(msg, buf[:aux]...)
+	}
+
+	size_bytes := msg[0:bytes.IndexRune(msg, DELIMITER)] 
+	size, _ := strconv.ParseUint(string(size_bytes), 10, 32)
+	new_buff := make([]byte, size)
+	for ; bytes_recv < int(size); {
+		aux, err := c.conn.Read(new_buff)
+		if err != nil {
+			c.conn.Close()
+			log.Fatalf("action: recv_bytes | result: fail | client_id: %v | error: %v",
+				c.config.ID,
+				err,
+			)
+		}
+		log.Infof("asdfadf")
+
+		bytes_recv += aux
+		msg = append(msg, new_buff[:aux]...)
+	}
+	return strings.Split(string(msg[size:]), ";")
+}
+
+func (c *Client) send_agency() error {
+	msg, _ := strconv.ParseUint(c.config.ID, 10, 16)
+	msg_to_send := uint16(msg)
+	msg_bytes := make([]byte, 2)
+	binary.BigEndian.PutUint16(msg_bytes[0:], msg_to_send)
+
+	for n:=0; n < len(msg_bytes);  {
+		bytes_sent, err := c.conn.Write(
+			msg_bytes[n:len(msg_bytes[:])-n],
+		)
+		if err != nil {
+			c.conn.Close()
+			log.Fatalf("action: send_bytes | result: fail | client_id: %v | error: %v",
+				c.config.ID,
+				err,
+			)
+		}
+		
+		n += bytes_sent
+	}
+
+	return nil
 }
