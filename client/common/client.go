@@ -254,16 +254,6 @@ func (c *Client) EndConnection() {
 	c.conn.Close()
 }
 
-func contains(s []byte, str byte) bool {
-	for _, v := range s {
-		if v == str {
-			return true
-		}
-	}
-
-	return false
-}
-
 func (c *Client) recv_winners() []string {
 	MAX_LEN := 8192
 	msg := []byte("")
@@ -308,8 +298,13 @@ func (c *Client) recv_winners() []string {
 		bytes_recv += aux
 		msg = append(msg, new_buff[:aux]...)
 	}
+	
+	w := strings.Split(string(msg[start+1:bytes_recv]), ";")
+	if len(w) == 1 {
+		return []string{}
+	}
 
-	return strings.Split(string(msg[start+1:bytes_recv]), ";")
+	return w
 }
 
 func (c *Client) send_agency() error {
