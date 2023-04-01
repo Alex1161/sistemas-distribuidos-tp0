@@ -166,23 +166,37 @@ func (c *Client) recv_bytes() []byte {
 	return response
 }
 
-func (c *Client) flush() {
-	if c.chunk == nil {
-		return
+func (c *Client) add_continue_suffix(chunk []byte, continue_sending uint16) []byte {
+	var chunk_to_send []byte
+	continue_msg := make([]byte, 2)
+	binary.BigEndian.PutUint16(continue_msg[0:], continue_sending)
+	if chunk == nil {
+		chunk_to_send = continue_msg
+	} else {
+		chunk_to_send = bytes.Join(
+			[][]byte{chunk, continue_msg}, 
+			[]byte(""),
+		)
 	}
 
-	bytes_to_send := c.add_header(c.chunk)
+	return chunk_to_send
+}
+
+func (c *Client) flush(continue_sending uint16) {
+	chunk_to_send := c.add_continue_suffix(c.chunk, continue_sending)
+
+	bytes_to_send := c.add_header(chunk_to_send)
 	c.send_bytes(bytes_to_send)
 	
 	bytes_recv := c.recv_bytes()
 	response_code := c.decode(bytes_recv)
-	c.conn.Close()
 
 	if response_code == 1 {
 		log.Infof("action: chunk_sent | result: success | client_id: %v",
 			c.config.ID,
 		)
 	} else {
+		c.conn.Close()
 		log.Errorf("action: chunk_sent | result: fail | client_id: %v | error: %v",
 			c.config.ID,
 			response_code,
@@ -205,6 +219,7 @@ func (c *Client) add_client(info_encoded []byte) {
 
 // StartClientLoop Send messages to the client until some time threshold is met
 func (c *Client) Send_number(clientInfo ClientInfo) {
+	CONTINUE := 1
 	// Catchig sigterm to shutdown gracefully
 	select {
 	case <-c.shutdown:
@@ -219,12 +234,14 @@ func (c *Client) Send_number(clientInfo ClientInfo) {
 
 	client_encoded := c.encode_content(clientInfo)
 	if (uint(len(c.chunk) + len(client_encoded)) >= c.config.ChunkSize) {
-		c.flush()
+		c.flush(uint16(CONTINUE))
 	}
 
 	c.add_client(client_encoded)
 }
 
 func (c *Client) EndConnection() {
-	FINISH := []byte("#")
+	CONTINUE := 0
+	c.flush(uint16(CONTINUE))
+	c.conn.Close()
 }

@@ -8,12 +8,15 @@ MAX_LEN = 8192
 MAX_BYTES_MSG = 2
 RESPONSE_BYTES = 2
 RESPONSE = 1
+CONTINUE = 1
+END = 0
 
 
 class Server:
     def __init__(self, port, listen_backlog):
         # Initialize server socket
         self._shutdown = False
+        self._continue_conn = True
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
@@ -53,11 +56,13 @@ class Server:
                 msg += client_sock.recv(size)
                 bytes_recv += len(msg)
 
+            self._continue_conn = bool(int.from_bytes(msg[-2:], 'big'))
+
         except OSError as e:
             logging.error(f"action: receive_message | result: fail | error: {e}")
             client_sock.close()
 
-        return msg[2:]
+        return msg[2:-2]
 
     def __send(self, client_sock, bytes_msg):
         try:
@@ -101,18 +106,19 @@ class Server:
         If a problem arises in the communication with the client, the
         client socket will also be closed
         """
-        if self._shutdown:
-            return
+        while self._continue_conn:
+            if self._shutdown:
+                return
 
-        bytes_msg = self.__recv(client_sock)
-        bets = self.__decode(bytes_msg)
-        for bet in bets:
-            store_bets([bet])
+            bytes_msg = self.__recv(client_sock)
+            bets = self.__decode(bytes_msg)
+            for bet in bets:
+                store_bets([bet])
 
-        logging.info(f'action: apuestas_almacenada | result: success')
+            logging.info(f'action: apuestas_almacenada | result: success')
 
-        response = self.__encode(RESPONSE)
-        self.__send(client_sock, response)
+            response = self.__encode(RESPONSE)
+            self.__send(client_sock, response)
 
     def __accept_new_connection(self):
         """
