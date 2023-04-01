@@ -16,6 +16,8 @@ class Server:
     def __init__(self, port, listen_backlog):
         # Initialize server socket
         self._shutdown = False
+        self._current_agency = None
+        self._process_finished = []
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
@@ -40,10 +42,9 @@ class Server:
             client_sock = self.__accept_new_connection()
             self.__handle_client_connection(client_sock)
             if client_sock is not None:
-                addr = client_sock.getpeername()
                 client_sock.shutdown(socket.SHUT_RDWR)
                 client_sock.close()
-                logging.info(f'action: apuestas_almacenada | result: success | client: {addr[0]}')
+                logging.info(f'action: apuestas_almacenada | result: success | client_id: {self._current_agency}')
 
     def __recv(self, client_sock):
         msg = b''
@@ -96,7 +97,7 @@ class Server:
             bets.append(bet)
             i = i + 5
 
-        return bets
+        return agency, bets
 
     def __encode(self, msg):
         bytes_msg = msg.to_bytes(RESPONSE_BYTES, byteorder='big')
@@ -115,9 +116,10 @@ class Server:
 
             bytes_msg = self.__recv(client_sock)
             if self._continue_conn:
-                bets = self.__decode(bytes_msg)
-                for bet in bets:
-                    store_bets([bet])
+                self._current_agency, bets = self.__decode(bytes_msg)
+                store_bets(bets)
+            else:
+                self._process_finished.append(self._current_agency)
 
             response = self.__encode(RESPONSE)
             self.__send(client_sock, response)
